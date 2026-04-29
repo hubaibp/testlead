@@ -19,22 +19,28 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libatk-bridge2.0-0 \
     libgtk-3-0 \
+    fonts-liberation \
+    libappindicator3-1 \
+    libasound2 \
+    libnss3 \
+    lsb-release \
+    xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Google Chrome
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+# Install Google Chrome (modern method without apt-key)
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/google-chrome.gpg \
     && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1) \
-    && wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/132.0.6834.110/linux64/chromedriver-linux64.zip" \
+# Install ChromeDriver (auto-detect version)
+RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1-4) \
+    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" \
     && unzip chromedriver-linux64.zip \
-    && mv chromedriver /usr/local/bin/ \
+    && mv chromedriver-linux64/chromedriver /usr/local/bin/ \
     && chmod +x /usr/local/bin/chromedriver \
-    && rm chromedriver-linux64.zip
+    && rm -rf chromedriver-linux64.zip chromedriver-linux64
 
 # Set working directory
 WORKDIR /app
