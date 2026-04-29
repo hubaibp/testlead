@@ -10,7 +10,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.units import inch
-
+from selenium.webdriver.chrome.options import Options 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'leadgen_secret_2024'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
