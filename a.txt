@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeadHunter Pro — Google Maps Lead Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+:root {
+  --bg: #080c14;
+  --surface: #0f1520;
+  --surface2: #161e2e;
+  --surface3: #1c2640;
+  --border: #1f2d47;
+  --accent: #00ff88;
+  --accent2: #0088ff;
+  --accent3: #ff4466;
+  --warn: #ffaa00;
+  --text: #e0eaff;
+  --text2: #7a90b8;
+  --text3: #4a5a78;
+  --radius: 12px;
+  --font-mono: 'Space Mono', monospace;
+  --font: 'Syne', sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden;
+  opacity: 0;
+  transition: visibility 0.2s, opacity 0.2s;
+}
+.modal-overlay.active {
+  visibility: visible;
+  opacity: 1;
+}
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  max-width: 480px;
+  width: 90%;
+  padding: 28px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  transform: scale(0.95);
+  transition: transform 0.2s;
+}
+.modal-overlay.active .modal-card {
+  transform: scale(1);
+}
+.modal-title {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, var(--accent3), var(--warn));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.modal-body {
+  color: var(--text2);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 20px 0;
+}
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+.modal-buttons button {
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font);
+  border: none;
+}
+.modal-cancel {
+  background: var(--surface2);
+  color: var(--text2);
+  border: 1px solid var(--border);
+}
+.modal-confirm {
+  background: linear-gradient(135deg, var(--accent3), #cc3355);
+  color: white;
+}
+.modal-confirm-clear {
+  background: #555;
+  color: white;
+}
+.shell { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+.sidebar {
+  width: 240px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 100;
+}
+.logo {
+  padding: 24px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-mark {
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.logo-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text3); margin-top: 2px; letter-spacing: 2px; }
+.nav { padding: 16px 0; flex: 1; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 20px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
+  user-select: none;
+}
+.nav-item:hover { color: var(--text); background: var(--surface2); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,255,136,0.05); }
+.nav-icon { font-size: 16px; width: 20px; text-align: center; }
+.sidebar-stats {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+.stat-pill {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px;
+  background: var(--surface2);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+.stat-pill-label { color: var(--text2); }
+.stat-pill-val { font-family: var(--font-mono); color: var(--accent); font-weight: 700; }
+.clear-all-btn {
+  margin-top: 12px;
+  width: 100%;
+  background: rgba(255,68,102,0.15);
+  border: 1px solid rgba(255,68,102,0.3);
+  color: var(--accent3);
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.clear-all-btn:hover {
+  background: rgba(255,68,102,0.3);
+  border-color: var(--accent3);
+}
+.main { margin-left: 240px; flex: 1; display: flex; flex-direction: column; }
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.topbar-title { font-size: 15px; font-weight: 700; }
+.topbar-badges { display: flex; gap: 8px; }
+.badge {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  border: 1px solid;
+}
+.badge.status-idle { border-color: var(--border); color: var(--text3); }
+.badge.status-running { border-color: var(--accent); color: var(--accent); animation: pulse-badge 1.5s ease-in-out infinite; }
+.badge.status-wa { border-color: #25d366; color: #25d366; }
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+@keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.page { display: none; padding: 28px; animation: fadeIn 0.3s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.section-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  background: linear-gradient(135deg, var(--text), var(--text2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.section-sub { font-size: 13px; color: var(--text3); margin-bottom: 24px; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text3);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text3); text-transform: uppercase; }
+.form-input, .form-select, .form-textarea {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(0,136,255,0.1); }
+.form-textarea { min-height: 100px; resize: vertical; }
+.suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sug-chip {
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text2);
+  transition: all 0.15s;
+  user-select: none;
+}
+.sug-chip:hover { border-color: var(--accent); color: var(--accent); }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+.btn-primary { background: linear-gradient(135deg, var(--accent), #00cc66); color: #080c14; }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,255,136,0.3); }
+.btn-secondary { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+.btn-danger { background: rgba(255,68,102,0.15); color: var(--accent3); border: 1px solid rgba(255,68,102,0.3); }
+.btn-danger:hover { background: rgba(255,68,102,0.25); }
+.btn-wa { background: linear-gradient(135deg, #25d366, #128c7e); color: white; }
+.btn-xl { padding: 14px 32px; font-size: 15px; border-radius: 10px; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.stat-card.green::before { background: linear-gradient(90deg, var(--accent), transparent); }
+.stat-card.blue::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+.stat-val { font-size: 32px; font-weight: 800; font-family: var(--font-mono); margin-bottom: 4px; }
+.stat-card.green .stat-val { color: var(--accent); }
+.stat-card.blue .stat-val { color: var(--accent2); }
+.stat-lbl { font-size: 11px; color: var(--text3); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.terminal {
+  background: #050810;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  height: 220px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.log-line { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.03); display: flex; gap: 10px; }
+.log-time { color: var(--text3); min-width: 70px; }
+.log-msg.info { color: var(--text2); }
+.log-msg.success { color: var(--accent); }
+.log-msg.error { color: var(--accent3); }
+.table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; }
+thead { background: var(--surface2); }
+th { padding: 12px 14px; text-align: left; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--text3); text-transform: uppercase; }
+td { padding: 11px 14px; font-size: 12px; border-top: 1px solid var(--border); color: var(--text2); }
+tbody tr:hover { background: var(--surface2); }
+.tag-lead { background: rgba(0,255,136,0.1); color: var(--accent); border: 1px solid rgba(0,255,136,0.2); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; display: inline-block; }
+.tag-web { background: rgba(0,136,255,0.1); color: var(--accent2); border: 1px solid rgba(0,136,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 10px; display: inline-block; }
+.filter-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.filter-bar input { flex: 1; min-width: 200px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; color: var(--text); }
+.filter-tab { padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text2); }
+.filter-tab.active { background: var(--surface3); border-color: var(--accent2); color: var(--accent2); }
+.empty { text-align: center; padding: 60px 20px; color: var(--text3); }
+.toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column-reverse; gap: 8px; }
+.toast { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; font-size: 13px; animation: slideIn 0.3s ease; }
+@keyframes slideIn { from{transform:translateX(40px);opacity:0} to{transform:translateX(0);opacity:1} }
+.progress-wrap { margin: 12px 0; }
+.progress-bar { height: 4px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.3s; }
+.wa-status { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; }
+.wa-status.disconnected { background: rgba(255,68,102,0.08); border: 1px solid rgba(255,68,102,0.2); color: var(--accent3); }
+.wa-status.connected { background: rgba(37,211,102,0.08); border: 1px solid rgba(37,211,102,0.2); color: #25d366; }
+.wa-status.connecting { background: rgba(255,170,0,0.08); border: 1px solid rgba(255,170,0,0.2); color: var(--warn); }
+.wa-dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+.msg-template { background: var(--surface2); border: 1px dashed var(--border); border-radius: 10px; padding: 16px; margin: 12px 0; font-size: 12px; white-space: pre-line; }
+@media (max-width: 900px) { .sidebar { display: none; } .main { margin-left: 0; } .stats-row { grid-template-columns: 1fr 1fr; } .form-grid { grid-template-columns: 1fr; } .form-grid-3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+  <div class="logo"><div class="logo-mark">LeadHunter Pro</div><div class="logo-sub">GOOGLE MAPS SCRAPER</div></div>
+  <nav class="nav">
+    <div class="nav-item active" onclick="showPage('scraper')"><span class="nav-icon">🔍</span> Scraper</div>
+    <div class="nav-item" onclick="showPage('all-data')"><span class="nav-icon">📋</span> All Data</div>
+    <div class="nav-item" onclick="showPage('leads')"><span class="nav-icon">🔥</span> Leads</div>
+    <div class="nav-item" onclick="showPage('whatsapp')"><span class="nav-icon">💬</span> WhatsApp</div>
+    <div class="nav-item" onclick="showPage('export')"><span class="nav-icon">📎</span> Export</div>
+  </nav>
+  <div class="sidebar-stats">
+    <div class="stat-pill"><span class="stat-pill-label">Total Found</span><span class="stat-pill-val" id="sb-total">0</span></div>
+    <div class="stat-pill"><span class="stat-pill-label">Leads (No Site)</span><span class="stat-pill-val" id="sb-leads">0</span></div>
+    <div class="stat-pill"><span class="stat-pill-label">With Website</span><span class="stat-pill-val" id="sb-web">0</span></div>
+    <button class="clear-all-btn" id="sidebar-clear-btn">🗑️ CLEAR ALL DATA</button>
+  </div>
+</aside>
+<main class="main">
+  <div class="topbar"><div class="topbar-title" id="topbar-title">Scraper — Find Leads</div><div class="topbar-badges"><div class="badge status-idle" id="scrape-badge"><div class="badge-dot"></div><span>IDLE</span></div><div class="badge status-idle" id="wa-badge"><div class="badge-dot"></div><span>WA: OFF</span></div></div></div>
+  
+  <div class="page active" id="page-scraper">
+    <div class="section-title">Find Your Leads</div><div class="section-sub">Scrape Google Maps for businesses without websites worldwide</div>
+    <div class="stats-row"><div class="stat-card green"><div class="stat-val" id="st-total">0</div><div class="stat-lbl">Total Scraped</div></div><div class="stat-card blue"><div class="stat-val" id="st-leads">0</div><div class="stat-lbl">Hot Leads</div></div><div class="stat-card red"><div class="stat-val" id="st-web">0</div><div class="stat-lbl">Have Website</div></div><div class="stat-card yellow"><div class="stat-val" id="st-rate">0%</div><div class="stat-lbl">Lead Rate</div></div></div>
+    <div class="card"><div class="card-title">Search Parameters</div><div class="form-grid form-grid-3"><div class="form-group"><label class="form-label">Business Type</label><input class="form-input" id="biz-type" placeholder="e.g. restaurant, salon, gym..." value="restaurant"><div class="suggestions" id="type-suggestions"><span class="sug-chip" onclick="setSug('biz-type','restaurant')">🍕 Restaurant</span><span class="sug-chip" onclick="setSug('biz-type','salon')">💇 Salon</span><span class="sug-chip" onclick="setSug('biz-type','gym')">💪 Gym</span><span class="sug-chip" onclick="setSug('biz-type','clinic')">🏥 Clinic</span><span class="sug-chip" onclick="setSug('biz-type','bakery')">🥐 Bakery</span><span class="sug-chip" onclick="setSug('biz-type','pharmacy')">💊 Pharmacy</span><span class="sug-chip" onclick="setSug('biz-type','tailor')">✂️ Tailor</span><span class="sug-chip" onclick="setSug('biz-type','hotel')">🏨 Hotel</span></div></div><div class="form-group"><label class="form-label">Location / City / Pincode</label><input class="form-input" id="location" placeholder="e.g. Mumbai, 400001, Dubai..."><div class="suggestions"><span class="sug-chip" onclick="setSug('location','Mumbai India')">🇮🇳 Mumbai</span><span class="sug-chip" onclick="setSug('location','Kozhikode Kerala India')">🇮🇳 Kozhikode</span><span class="sug-chip" onclick="setSug('location','Dubai UAE')">🇦🇪 Dubai</span><span class="sug-chip" onclick="setSug('location','Singapore')">🇸🇬 Singapore</span><span class="sug-chip" onclick="setSug('location','Delhi India')">🇮🇳 Delhi</span><span class="sug-chip" onclick="setSug('location','Bangalore India')">🇮🇳 Bangalore</span></div></div><div class="form-group"><label class="form-label">Max Businesses (10–200)</label><input class="form-input" id="max-biz" type="number" min="10" max="200" value="50"></div></div><div class="btn-row"><button class="btn btn-primary btn-xl" id="btn-start" onclick="startScrape()">🚀 Start Scraping</button><button class="btn btn-danger" id="btn-stop" onclick="stopScrape()" disabled>⏹️ Stop</button></div></div>
+    <div class="card"><div class="card-title">Live Console</div><div class="terminal" id="terminal"><div class="log-line"><span class="log-time">00:00:00</span><span class="log-msg info">LeadHunter Pro ready. Configure your search above.</span></div></div></div>
+    <div class="card" id="live-results-card" style="display:none"><div class="card-title">Live Results (Latest 10)</div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Category</th><th>Rating</th><th>Status</th></tr></thead><tbody id="live-tbody"></tbody></table></div></div>
+  </div>
+  
+  <div class="page" id="page-all-data"><div class="section-title">All Scraped Data</div><div class="section-sub">Every business found in your last scrape</div><div class="filter-bar"><input id="all-search" placeholder="🔍 Search by name, phone, pincode..." oninput="filterTable('all')"><span class="filter-tab active" onclick="setFilter('all','all',this)">All</span><span class="filter-tab" onclick="setFilter('all','lead',this)">Leads Only</span><span class="filter-tab" onclick="setFilter('all','web',this)">With Website</span></div><div class="table-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Address</th><th>Rating</th><th>Category</th><th>Pincode</th><th>Website</th><th>Status</th></tr></thead><tbody id="all-tbody"></tbody></table></div><div class="empty" id="all-empty"><div class="empty-icon">📭</div><div class="empty-title">No data yet</div><div>Run a scrape to see results here</div></div></div>
+  
+  <div class="page" id="page-leads"><div class="section-title">Hot Leads</div><div class="section-sub">Businesses with valid phone numbers but NO website — your best prospects</div><div class="filter-bar"><input id="leads-search" placeholder="🔍 Search leads..." oninput="filterTable('leads')"><span style="font-size:12px; color:var(--text3)">Found: <strong id="leads-count" style="color:var(--accent)">0</strong> leads</span></div><div class="table-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Address</th><th>Rating</th><th>Category</th><th>Pincode</th><th>Scraped At</th></tr></thead><tbody id="leads-tbody"></tbody></table></div><div class="empty" id="leads-empty"><div class="empty-icon">🎯</div><div class="empty-title">No leads yet</div><div>Scrape some businesses to find leads without websites</div></div></div>
+  
+  <div class="page" id="page-whatsapp"><div class="section-title">WhatsApp Outreach</div><div class="section-sub">Auto-send messages to your leads via WhatsApp Web</div><div class="wa-status disconnected" id="wa-status-bar"><div class="wa-dot"></div><span id="wa-status-text">WhatsApp Not Connected — Click "Connect" to begin</span></div><div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px;"><button class="btn btn-wa" id="btn-wa-connect" onclick="connectWA()">🔗 Connect WhatsApp</button><button class="btn btn-secondary" onclick="showPage('leads')">📋 View Leads First</button></div><div class="card"><div class="card-title">Message Template</div><div class="form-group" style="margin-bottom:12px;"><label class="form-label">Message (use {name} for business name)</label><textarea class="form-textarea" id="wa-message" style="min-height:140px;">Hi {name},👋
+
+I noticed your business doesn't have a website yet.
+
+I can help you create a professional website starting from just ₹4000!
+
+✅ Mobile-friendly design
+✅ SEO-optimized
+✅ Free domain & hosting for 1 year
+
+Interested? Reply 'YES' for a free consultation!
+
+Thanks 🙏</textarea></div><div class="msg-preview-label">💬 LIVE PREVIEW</div><div class="msg-template" id="msg-preview"></div></div><div class="card"><div class="card-title">Send Settings</div><div class="form-grid"><div class="form-group"><label class="form-label">Send To</label><select class="form-select" id="wa-target"><option value="leads">Leads Only (No Website)</option><option value="all">All Businesses</option></select></div><div class="form-group"><label class="form-label">Max Messages</label><input class="form-input" id="wa-max" type="number" min="1" max="50" value="20"></div><div class="form-group"><label class="form-label">Delay Between Messages (sec)</label><input class="form-input" id="wa-delay" type="number" min="20" max="60" value="25"></div></div><div id="wa-progress-wrap" style="display:none"><div class="progress-wrap"><div class="progress-label"><span id="wa-prog-label">Sending...</span><span id="wa-prog-pct">0%</span></div><div class="progress-bar"><div class="progress-fill" id="wa-prog-fill" style="width:0%"></div></div></div></div><div class="btn-row"><button class="btn btn-wa btn-xl" id="btn-wa-send" onclick="sendWA()" disabled>📤 Send Messages</button></div></div></div>
+  
+  <div class="page" id="page-export"><div class="section-title">Export Data</div><div class="section-sub">Download your data in multiple formats</div><div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;"><div class="card"><div class="card-title">📎 Export Leads (No Website)</div><p style="font-size:13px;color:var(--text2);margin-bottom:16px;">Export only the hot leads — businesses without real websites, with valid phone numbers.</p><div style="display:flex;flex-direction:column;gap:10px;"><a class="btn btn-primary" href="/api/export/excel?type=leads" download>📊 Download Excel (.xlsx)</a><a class="btn btn-secondary" href="/api/export/pdf?type=leads" download>📄 Download PDF</a><a class="btn btn-secondary" href="/api/export/csv?type=leads" download>📑 Download CSV</a></div></div><div class="card"><div class="card-title">📊 Export All Businesses</div><p style="font-size:13px;color:var(--text2);margin-bottom:16px;">Export complete data including businesses with and without websites.</p><div style="display:flex;flex-direction:column;gap:10px;"><a class="btn btn-primary" href="/api/export/excel?type=all" download>📊 Download Excel (.xlsx)</a><a class="btn btn-secondary" href="/api/export/pdf?type=all" download>📄 Download PDF</a><a class="btn btn-secondary" href="/api/export/csv?type=all" download>📑 Download CSV</a></div></div></div><div class="card" style="margin-top:4px;"><div class="card-title">Current Dataset Overview</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px;"><div style="text-align:center;padding:16px;background:var(--surface2);border-radius:10px;"><div style="font-size:28px;font-weight:800;color:var(--accent);font-family:var(--font-mono)" id="exp-total">0</div><div style="font-size:11px;color:var(--text3);margin-top:4px;">TOTAL RECORDS</div></div><div style="text-align:center;padding:16px;background:var(--surface2);border-radius:10px;"><div style="font-size:28px;font-weight:800;color:var(--accent2);font-family:var(--font-mono)" id="exp-leads">0</div><div style="font-size:11px;color:var(--text3);margin-top:4px;">LEADS</div></div><div style="text-align:center;padding:16px;background:var(--surface2);border-radius:10px;"><div style="font-size:28px;font-weight:800;color:var(--accent3);font-family:var(--font-mono)" id="exp-web">0</div><div style="font-size:11px;color:var(--text3);margin-top:4px;">WITH WEBSITE</div></div></div></div></div>
+</main>
+</div>
+<div class="toast-container" id="toasts"></div>
+<div class="modal-overlay" id="clearModal"><div class="modal-card"><div class="modal-title">⚠️ CLEAR ALL DATA</div><div class="modal-body">This will permanently delete ALL scraped businesses, leads, logs, and statistics. <strong>Would you like to download your leads before clearing?</strong><br><br>⚠️ This action cannot be undone.</div><div class="modal-buttons"><button class="modal-cancel" id="modalCancelBtn">Cancel</button><button class="modal-confirm" id="modalDownloadBtn">📥 Download & Clear</button><button class="modal-confirm-clear modal-confirm" id="modalClearOnlyBtn">Clear Without Export</button></div></div></div>
+
+<script>
+let allData = [], leadsData = [], currentFilter = 'all', allFilter = 'all';
+let totalScraped = 0, totalLeads = 0, scraping = false, waReady = false;
+const socket = io();
+
+socket.on('log', ({msg, level}) => addLog(msg, level));
+socket.on('stats', ({total, leads}) => { totalScraped = total; totalLeads = leads; updateStats(total, leads, total - leads); });
+socket.on('new_business', ({business, category}) => {
+  if (category === 'lead') { leadsData.unshift(business); document.getElementById('leads-count').textContent = leadsData.length; }
+  allData.unshift(business); updateLiveTable(business); renderTables(); updateExportStats();
+});
+socket.on('scraping_started', () => { scraping = true; setBadge('scrape-badge','running','SCRAPING'); document.getElementById('btn-start').disabled = true; document.getElementById('btn-stop').disabled = false; document.getElementById('live-results-card').style.display = 'block'; allData = []; leadsData = []; renderTables(); });
+socket.on('scraping_done', ({total=0, leads=0}) => { scraping = false; setBadge('scrape-badge','idle','IDLE'); document.getElementById('btn-start').disabled = false; document.getElementById('btn-stop').disabled = true; showToast(`✅ Done! ${total} businesses, ${leads} leads`, 'success'); renderTables(); updateExportStats(); });
+socket.on('whatsapp_qr', () => setWAStatus('connecting', '📱 Scan the QR Code in the browser window!'));
+socket.on('whatsapp_ready', () => { waReady = true; setWAStatus('connected', '✅ WhatsApp Connected — Ready to send!'); setBadge('wa-badge','wa','WA: ON'); document.getElementById('btn-wa-send').disabled = false; showToast('WhatsApp connected!', 'success'); });
+socket.on('whatsapp_failed', () => setWAStatus('disconnected', '❌ WhatsApp connection failed. Try again.'));
+socket.on('wa_progress', ({sent, failed, total}) => { let pct = Math.round((sent+failed)/total*100); document.getElementById('wa-prog-fill').style.width = pct+'%'; document.getElementById('wa-prog-pct').textContent = pct+'%'; document.getElementById('wa-prog-label').textContent = `Sent: ${sent} | Failed: ${failed} | Total: ${total}`; document.getElementById('wa-progress-wrap').style.display = 'block'; });
+socket.on('wa_done', ({sent, failed}) => showToast(`WhatsApp done! Sent: ${sent}, Failed: ${failed}`, 'success'));
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${id}`).classList.add('active');
+  let nav = [...document.querySelectorAll('.nav-item')].find(n => n.textContent.toLowerCase().includes(id.split('-')[0])); if(nav) nav.classList.add('active');
+  let titles = { 'scraper':'Scraper — Find Leads', 'all-data':'All Scraped Data', 'leads':'🔥 Hot Leads', 'whatsapp':'💬 WhatsApp Outreach', 'export':'📎 Export Data' };
+  document.getElementById('topbar-title').textContent = titles[id] || id;
+  if(id === 'export') updateExportStats();
+  if(id === 'leads') renderLeadsTable();
+  if(id === 'all-data') renderAllTable();
+}
+function startScrape() { let bt = document.getElementById('biz-type').value.trim(), loc = document.getElementById('location').value.trim(), max = parseInt(document.getElementById('max-biz').value) || 50; if(!bt || !loc){ showToast('Please fill in business type and location', 'error'); return; } fetch('/api/scrape', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({business_type:bt, location:loc, max_businesses:max}) }).then(r=>r.json()).then(d=>{if(d.error) showToast(d.error,'error'); else addLog(`🚀 Scrape started: ${bt} in ${loc} (max ${max})`,'info');}); }
+function stopScrape() { fetch('/api/stop_scrape',{method:'POST'}).then(()=>showToast('Stopping scrape...','warning')); }
+function connectWA() { fetch('/api/whatsapp/init',{method:'POST'}).then(()=>{ setWAStatus('connecting','⏳ Opening WhatsApp Web — scan the QR code...'); showToast('Opening WhatsApp Web...','info'); }); }
+function sendWA() { let target = document.getElementById('wa-target').value, msg = document.getElementById('wa-message').value, max = parseInt(document.getElementById('wa-max').value)||20, delay = parseInt(document.getElementById('wa-delay').value)||25; if(!msg.trim()){ showToast('Please enter a message', 'error'); return; } fetch('/api/whatsapp/send',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({use_leads:target==='leads', message:msg, max_messages:max, delay:delay}) }).then(r=>r.json()).then(d=>{ if(d.total===0) showToast('No leads to send to!', 'error'); else showToast(`Sending to ${d.total} contacts...`,'info'); }); }
+function renderTables() { renderAllTable(); renderLeadsTable(); }
+function renderAllTable(filter=allFilter, search='') { let tbody=document.getElementById('all-tbody'), empty=document.getElementById('all-empty'); let data = allData; if(filter==='lead') data=data.filter(b=>!b.has_website); if(filter==='web') data=data.filter(b=>b.has_website); if(search) { let s=search.toLowerCase(); data=data.filter(b=>b.name?.toLowerCase().includes(s)||b.phone?.includes(s)||b.pincode?.includes(s)); } empty.style.display=data.length?'none':'block'; tbody.innerHTML=data.map((b,i)=>`<tr><td>${i+1}</td><td class="name-cell" title="${b.name}">${b.name?.substring(0,35)}</td><td><a href="tel:${b.phone}" style="color:var(--accent);text-decoration:none">${b.phone}</a></td><td title="${b.address}">${b.address?.substring(0,40)||'-'}</td><td>${b.rating||'-'}</td><td>${b.category?.substring(0,20)||'-'}</td><td>${b.pincode||'-'}</td><td title="${b.website}">${b.website?.substring(0,30)||'NO WEBSITE'}</td><td>${b.has_website?'<span class="tag-web">✓ HAS SITE</span>':'<span class="tag-lead">🎯 LEAD</span>'}</td></tr>`).join(''); }
+function renderLeadsTable(search='') { let tbody=document.getElementById('leads-tbody'), empty=document.getElementById('leads-empty'); let data=leadsData; if(search) { let s=search.toLowerCase(); data=data.filter(b=>b.name?.toLowerCase().includes(s)||b.phone?.includes(s)); } document.getElementById('leads-count').textContent=data.length; empty.style.display=data.length?'none':'block'; tbody.innerHTML=data.map((b,i)=>`<tr><td>${i+1}</td><td class="name-cell" title="${b.name}">${b.name?.substring(0,35)}</td><td><a href="tel:${b.phone}" style="color:var(--accent);text-decoration:none">${b.phone}</a></td><td title="${b.address}">${b.address?.substring(0,40)||'-'}</td><td>${b.rating||'-'}</td><td>${b.category?.substring(0,20)||'-'}</td><td>${b.pincode||'-'}</td><td style="color:var(--text3);font-size:11px">${b.scraped_at||'-'}</td></tr>`).join(''); }
+function filterTable(which) { let val=document.getElementById(`${which}-search`).value; if(which==='all') renderAllTable(allFilter,val); else renderLeadsTable(val); }
+function setFilter(table, filter, el) { document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); allFilter=filter; renderAllTable(filter, document.getElementById('all-search').value); }
+function updateLiveTable(b) { let tbody=document.getElementById('live-tbody'); let row = `<tr><td class="name-cell" title="${b.name}">${b.name?.substring(0,35)}</td><td style="color:var(--accent)">${b.phone}</td><td>${b.category?.substring(0,20)||'-'}</td><td>${b.rating||'-'}</td><td>${b.has_website?'<span class="tag-web">✓ HAS SITE</span>':'<span class="tag-lead">🎯 LEAD</span>'}</td></tr>`; tbody.insertAdjacentHTML('afterbegin',row); if(tbody.children.length>10) tbody.removeChild(tbody.lastChild); }
+function updateStats(total, leads, web) { document.getElementById('st-total').textContent = total; document.getElementById('st-leads').textContent = leads; document.getElementById('st-web').textContent = web; document.getElementById('st-rate').textContent = total ? Math.round(leads/total*100)+'%' : '0%'; document.getElementById('sb-total').textContent = total; document.getElementById('sb-leads').textContent = leads; document.getElementById('sb-web').textContent = web; }
+function updateExportStats() { document.getElementById('exp-total') && (document.getElementById('exp-total').textContent = allData.length); document.getElementById('exp-leads') && (document.getElementById('exp-leads').textContent = leadsData.length); document.getElementById('exp-web') && (document.getElementById('exp-web').textContent = allData.length - leadsData.length); }
+function addLog(msg, level='info') { let t = document.getElementById('terminal'); let now = new Date().toTimeString().split(' ')[0]; t.innerHTML += `<div class="log-line"><span class="log-time">${now}</span><span class="log-msg ${level}">${msg}</span></div>`; t.scrollTop = t.scrollHeight; }
+function setBadge(id, status, text) { let b = document.getElementById(id); b.className = `badge status-${status}`; b.innerHTML = `<div class="badge-dot"></div><span>${text}</span>`; }
+function setWAStatus(state, text) { let el = document.getElementById('wa-status-bar'); el.className = `wa-status ${state}`; document.getElementById('wa-status-text').textContent = text; }
+function setSug(field, val) { document.getElementById(field).value = val; }
+function showToast(msg, type='info') { let c = document.getElementById('toasts'); let t = document.createElement('div'); t.className = `toast ${type}`; let icons = {success:'✅', error:'❌', warning:'⚠️', info:'ℹ️'}; t.innerHTML = `${icons[type]||'ℹ️'} ${msg}`; c.appendChild(t); setTimeout(() => t.remove(), 4000); }
+document.getElementById('wa-message').addEventListener('input', () => { let preview = document.getElementById('msg-preview'); preview.textContent = document.getElementById('wa-message').value.replace(/\{name\}/g, 'Sample Business').replace(/\{business_name\}/g, 'Sample Business'); });
+document.getElementById('msg-preview').textContent = document.getElementById('wa-message').value.replace(/\{name\}/g, 'Sample Business');
+
+// Clear All Data with modal and download prompt
+const clearModal = document.getElementById('clearModal');
+const sidebarClearBtn = document.getElementById('sidebar-clear-btn');
+const modalCancelBtn = document.getElementById('modalCancelBtn');
+const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+const modalClearOnlyBtn = document.getElementById('modalClearOnlyBtn');
+
+function performClearData(exportFirst = false) {
+  if(exportFirst && leadsData.length > 0) {
+    window.location.href = '/api/export/csv?type=leads';
+    setTimeout(() => { executeClear(); }, 800);
+  } else { executeClear(); }
+}
+function executeClear() {
+  fetch('/api/clear_data', { method: 'POST' })
+  .then(res => res.json())
+  .then(data => {
+    if(data.status === 'cleared') {
+      allData = []; leadsData = []; totalScraped = 0; totalLeads = 0;
+      updateStats(0,0,0);
+      renderTables();
+      document.getElementById('live-tbody').innerHTML = '';
+      document.getElementById('terminal').innerHTML = `<div class="log-line"><span class="log-time">${new Date().toTimeString().split(' ')[0]}</span><span class="log-msg info">🗑️ All data cleared by user. Ready for new scrape.</span></div>`;
+      showToast('All leads & businesses cleared!', 'success');
+      updateExportStats();
+    } else { showToast('Clear failed', 'error'); }
+  }).catch(()=> showToast('Error clearing data', 'error'));
+  clearModal.classList.remove('active');
+}
+sidebarClearBtn.onclick = () => { clearModal.classList.add('active'); };
+modalCancelBtn.onclick = () => { clearModal.classList.remove('active'); };
+modalDownloadBtn.onclick = () => { performClearData(true); };
+modalClearOnlyBtn.onclick = () => { performClearData(false); };
+clearModal.onclick = (e) => { if(e.target === clearModal) clearModal.classList.remove('active'); };
+
+fetch('/api/status').then(r=>r.json()).then(d=> { updateStats(d.total, d.leads, d.total - d.leads); if(d.wa_ready) { waReady=true; setWAStatus('connected','✅ WhatsApp Connected'); setBadge('wa-badge','wa','WA: ON'); document.getElementById('btn-wa-send').disabled=false; } });
+fetch('/api/businesses').then(r=>r.json()).then(data=> { allData=data; fetch('/api/businesses?type=leads').then(r=>r.json()).then(leads=>{ leadsData=leads; document.getElementById('leads-count').textContent=leads.length; updateStats(allData.length, leadsData.length, allData.length - leadsData.length); renderTables(); updateExportStats(); }); });
+</script>
+</body>
+</html>
